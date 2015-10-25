@@ -26,6 +26,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import sys
+import time
 from . import PushService
 from collections import deque
 from socket import socket, AF_INET, SOCK_STREAM
@@ -33,9 +35,8 @@ import binascii
 import json
 import logging
 import struct
-import time
 from util import *
-
+from pyapns import pyAPNs, pyFrame, pyPayload
 from tornado import ioloop, iostream
 
 PAYLOAD_LENGTH = 256
@@ -86,6 +87,7 @@ class PayLoad(object):
         payload = {'aps': item}
         if self.customparams != None:
             payload = dict(payload.items() + self.customparams.items())
+	#logging.info ("APNS payload is: %s" % payload)
         return payload
 
     def json(self):
@@ -93,7 +95,7 @@ class PayLoad(object):
         return jsontext
 
 class APNFeedback(object):
-    def __init__(self, env="sandbox", certfile="", keyfile="", appname=""):
+    def __init__(self,  env="sandbox", certfile="", keyfile="", appname="", db=""):
         certexists = file_exists(certfile)
         keyexists = file_exists(keyfile)
         if not certexists:
@@ -107,15 +109,26 @@ class APNFeedback(object):
         self.keyfile = get_filepath(keyfile)
         self.ioloop = ioloop.IOLoop.instance()
         self.appname = appname
-        self.connect()
+	#PP use pyAPNS to get feedback
+	self.db = db
+	logging.info("Invoking pyAPNs feedback to check channel")
+	mode = True if (env == 'sandbox') else False
+	feedback_connection = pyAPNs(use_sandbox=mode, cert_file=self.certfile, key_file=self.keyfile)
+	# Get feedback messages.
+	for (token_hex, fail_time) in feedback_connection.feedback_server.items():
+		logging.info( "feedback deleting token: %s expired at %s\n" %(token_hex, fail_time))
+		try:
+			result = self.db.tokens.remove({'token':token_hex}, safe=True)
+		except Exception as ex:
+                	logging.exception(ex)
 
     def connect(self):
         """ Setup socket """
         self.sock = socket(AF_INET, SOCK_STREAM)
         self.remote_stream = iostream.SSLIOStream(self.sock, ssl_options=dict(certfile=self.certfile, keyfile=self.keyfile))
         self.remote_stream.connect(self.host, self._on_feedback_service_connected)
-        self.remote_stream.read_until_close(self._on_feedback_service_read_close,
-                                            self._on_feedback_service_read_streaming)
+	#PP - just one callback
+        self.remote_stream.read_until_close(self._on_feedback_service_read_streaming)
 
     def shutdown(self):
         """Shutdown this connection"""
@@ -123,14 +136,17 @@ class APNFeedback(object):
         self.sock.close()
 
     def _on_feedback_service_connected(self):
-        logging.info("remote connected")
+        logging.info("remote connected to APNS feedback")
 
     def _on_feedback_service_read_close(self, data):
+        logging.info("remote shutdown from APNS feedback")
         self.shutdown()
 
     def _on_feedback_service_read_streaming(self, data):
         """ Feedback """
         pass
+	#PP
+        self.shutdown()
 
 class APNClient(PushService):
 
@@ -264,6 +280,7 @@ class APNClient(PushService):
 
     def process(self, **kwargs):
         token = kwargs['token']
+	#logging.info ("APNS token is %s" %token)
         apnsparams = kwargs['apns']
         sound = apnsparams.get('sound', None)
         badge = apnsparams.get('badge', None)
@@ -273,7 +290,7 @@ class APNClient(PushService):
 
     def send(self, deviceToken, payload):
         """ Pack payload and append to message queue """
-        # logging.info("Notification through %s[%d]" % (self.appname, self.instanceid))
+        logging.info("Notification through %s[%d]" % (self.appname, self.instanceid))
         json = payload.json()
         json_len = len(json)
         fmt = '!bIIH32sH%ds' % json_len
@@ -302,7 +319,7 @@ class APNClient(PushService):
         # One day
         expiry = payload.expiry
         tokenLength = 32
-        # logging.info(deviceToken)
+        logging.info(deviceToken)
         m = struct.pack(fmt, command, identifier, expiry, tokenLength,
                         binascii.unhexlify(deviceToken),
                         json_len, json)

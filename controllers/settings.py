@@ -90,7 +90,9 @@ class AppHandler(WebBaseHandler):
             del self.apnsconnections[app['shortname']]
 
     def perform_feedback(self, app):
-        apn = APNFeedback(app.get('environment'), app.get('certfile', ''), app.get('keyfile', ''), app['shortname'])
+	#PP
+        apn = APNFeedback(app.get('environment'), app.get('certfile', ''), app.get('keyfile', ''), app['shortname'],self.application.mongodb['zmninja'
+])
 
     @tornado.web.authenticated
     def post(self, appname):
