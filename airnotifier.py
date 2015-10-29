@@ -180,7 +180,11 @@ class AirNotifierApp(tornado.web.Application):
 
     def main(self):
         logging.info("Starting AirNotifier server")
-        http_server = tornado.httpserver.HTTPServer(self)
+	#PP self signed cert error catch
+	try:
+		http_server = tornado.httpserver.HTTPServer(self, ssl_options={"certfile":"air.crt","keyfile":"air.key"})
+	except SSLError:
+		pass
         http_server.listen(options.port)
         logging.info("AirNotifier is running")
         try:
