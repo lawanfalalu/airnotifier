@@ -39,7 +39,11 @@ from util import *
 from pyapns import pyAPNs, pyFrame, pyPayload
 from tornado import ioloop, iostream
 
-PAYLOAD_LENGTH = 256
+glob_env =""
+
+# PP - apple now allows 2k
+# PAYLOAD_LENGTH = 256
+PAYLOAD_LENGTH = 2048
 
 apns = {
     'sandbox': ("gateway.sandbox.push.apple.com", 2195),
@@ -154,18 +158,21 @@ class APNClient(PushService):
         return self.connected
 
     def __init__(self, env='sandbox', certfile="", keyfile="", appname="", instanceid=0):
+	global glob_env
         certexists = file_exists(certfile)
         keyexists = file_exists(keyfile)
         if not certexists or not keyexists:
             raise Exception("APNs certificate or key files do not exist")
         self.apns = apns[env]
+	
         self.certfile = get_filepath(certfile)
         self.keyfile = get_filepath(keyfile)
         self.messages = deque()
         self.reconnect = True
 	self.errors = None
         self.ioloop = ioloop.IOLoop.instance()
-
+	glob_env = env
+	print "ENVIRONMENT IS %s" %glob_env
         self.appname = appname
         self.instanceid = instanceid
 
@@ -280,13 +287,20 @@ class APNClient(PushService):
 
     def process(self, **kwargs):
         token = kwargs['token']
-	#logging.info ("APNS token is %s" %token)
+	logging.info ("APNS token is %s" %token)
         apnsparams = kwargs['apns']
         sound = apnsparams.get('sound', None)
         badge = apnsparams.get('badge', None)
         customparams = apnsparams.get('custom', None)
         pl = PayLoad(alert=kwargs['alert'], sound=sound, badge=badge, identifier=0, expiry=None, customparams=customparams)
-        self.send(token, pl)
+	logging.info ("ignoring airnotifier APNS and sending via pyAPNS instead...")
+	mode = True if (glob_env == 'sandbox') else False
+	print "PYAPNS DETAILS: %r %s %s " % (mode, self.certfile, self.keyfile)
+	pyapns_connection  = pyAPNs(use_sandbox=mode, cert_file=self.certfile, key_file=self.keyfile)
+	pyapns_payload = pyPayload (alert=kwargs['alert'], sound=sound, badge=badge)
+	print "PYAPNS MESSAGE: %s AND %s " % (pyapns_payload, token)
+	pyapns_connection.gateway_server.send_notification(token,pyapns_payload)
+        # self.send(token, pl)
 
     def send(self, deviceToken, payload):
         """ Pack payload and append to message queue """
@@ -319,7 +333,7 @@ class APNClient(PushService):
         # One day
         expiry = payload.expiry
         tokenLength = 32
-        logging.info(deviceToken)
+        logging.info("Sending via APNS to %s" %deviceToken)
         m = struct.pack(fmt, command, identifier, expiry, tokenLength,
                         binascii.unhexlify(deviceToken),
                         json_len, json)
@@ -339,6 +353,8 @@ class APNClient(PushService):
 	return temp
 
     def _send_message(self):
+	if self.remote_stream.closed():
+	    print "REMOTE STREAM CLOSED"
         if len(self.messages) and not self.remote_stream.closed():
             # First in first out
             msg = self.messages.popleft()
