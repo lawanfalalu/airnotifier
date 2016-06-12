@@ -29,6 +29,7 @@
 from . import PushService
 import json
 import requests
+import logging
 
 GCM_ENDPOINT = 'https://android.googleapis.com/gcm/send'
 
@@ -69,6 +70,7 @@ class GCMClient(PushService):
         if collapse_key:
             payload['collapse_key'] = collapse_key
 
+	logging.info(json.dumps(payload))
         return json.dumps(payload)
 
     def reverse_response_info(self, key, ids, results):
@@ -87,11 +89,15 @@ class GCMClient(PushService):
     def process(self, **kwargs):
         gcmparam = kwargs.get('gcm', {})
         collapse_key = gcmparam.get('collapse_key', None)
+	sound = gcmparam.get('soundname',None)
         ttl = gcmparam.get('ttl', None)
         alert = kwargs.get('alert', None)
         data = gcmparam.get('data', {})
         if 'message' not in data:
             data['message'] = kwargs.get('alert', '')
+	if 'soundname' not in data and sound:
+	    data['soundname'] = sound
+
         return self.send(kwargs['token'], data=data, collapse_key=collapse_key, ttl=ttl)
 
     def send(self, regids, data=None, collapse_key=None, ttl=None, retries=5):

@@ -37,6 +37,8 @@ from constants import DEVICE_TYPE_IOS, DEVICE_TYPE_ANDROID, DEVICE_TYPE_WNS, \
     DEVICE_TYPE_MPNS, DEVICE_TYPE_SMS
 from pushservices.gcm import GCMUpdateRegIDsException, \
     GCMInvalidRegistrationException, GCMNotRegisteredException, GCMException
+import logging
+import re
 
 @route(r"/api/v2/push[\/]?")
 class PushHandler(APIBaseHandler):
@@ -59,6 +61,7 @@ class PushHandler(APIBaseHandler):
 
     def post(self):
         try:
+	    logging.info ("New Push request from IP:%s" % self.request.remote_ip)
             """ Send notifications """
             if not self.can("send_notification"):
                 self.send_response(FORBIDDEN, dict(error="No permission to send notification"))
@@ -99,7 +102,7 @@ class PushHandler(APIBaseHandler):
                 except Exception as ex:
                     self.send_response(INTERNAL_SERVER_ERROR, dict(error=str(ex)))
 
-            logmessage = 'Message length: %s, Access key: %s' %(len(data['alert']), self.appkey)
+            logmessage = 'requested by:%s, Message length: %s, Access key: %s, device token: %s' %( self.request.remote_ip, len(data['alert']), self.appkey, self.token)
             self.add_to_log('%s notification' % self.appname, logmessage)
 
             if device == DEVICE_TYPE_SMS:
@@ -122,6 +125,8 @@ class PushHandler(APIBaseHandler):
                 data.setdefault('gcm', {})
                 try:
                     gcm = self.gcmconnections[self.app['shortname']][0]
+                    data['gcm'].setdefault('soundname', data.get('sound', None))
+		    logging.info ('GCM API: Set soundname to %s' % data['sound'])
                     response = gcm.process(token=[self.token], alert=data['alert'], extra=data['extra'], gcm=data['gcm'])
                     responsedata = response.json()
                     if responsedata['failure'] == 0:
