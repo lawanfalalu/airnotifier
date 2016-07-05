@@ -1,3 +1,3 @@
 #!/bin/sh
-cd /home/arjunrc/airnotifier
+cd /home/pixelspliable/airnotifier
 /usr/bin/python airnotifier.py

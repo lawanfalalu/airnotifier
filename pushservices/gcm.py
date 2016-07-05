@@ -59,16 +59,17 @@ class GCMClient(PushService):
         self.endpoint = endpoint
 
 
-    def build_request(self, regids, data, collapse_key, ttl):
+    def build_request(self, regids, data, collapse_key, ttl,extra):
         payload = {'registration_ids': regids}
         if data:
-            payload['data'] = data
+            payload['data'] = dict(data.items() + extra.items())
 
         if ttl >= 0:
             payload['time_to_live'] = ttl
 
         if collapse_key:
             payload['collapse_key'] = collapse_key
+
 
 	logging.info(json.dumps(payload))
         return json.dumps(payload)
@@ -88,6 +89,7 @@ class GCMClient(PushService):
 
     def process(self, **kwargs):
         gcmparam = kwargs.get('gcm', {})
+	extra = kwargs.get('extra',{})
         collapse_key = gcmparam.get('collapse_key', None)
 	sound = gcmparam.get('soundname',None)
         ttl = gcmparam.get('ttl', None)
@@ -98,9 +100,9 @@ class GCMClient(PushService):
 	if 'soundname' not in data and sound:
 	    data['soundname'] = sound
 
-        return self.send(kwargs['token'], data=data, collapse_key=collapse_key, ttl=ttl)
+        return self.send(kwargs['token'], data=data, collapse_key=collapse_key, ttl=ttl, extra=extra)
 
-    def send(self, regids, data=None, collapse_key=None, ttl=None, retries=5):
+    def send(self, regids, data=None, collapse_key=None, ttl=None, extra=None, retries=5):
         '''
         Send message to google gcm endpoint
         :param regids: list
@@ -112,7 +114,7 @@ class GCMClient(PushService):
         if not regids:
             raise GCMException("Registration IDs cannot be empty")
 
-        payload = self.build_request(regids, data, collapse_key, ttl)
+        payload = self.build_request(regids, data, collapse_key, ttl, extra)
         headers = {"content-type":"application/json", 'Authorization': 'key=%s' % self.apikey}
         response = requests.post(self.endpoint, data=payload, headers=headers)
 

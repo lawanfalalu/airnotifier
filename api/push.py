@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!usr/bin/python
 # -*- coding: utf-8 -*-
 
 # Copyright (c) 2012, Dongsheng Cai
@@ -73,13 +73,14 @@ class PushHandler(APIBaseHandler):
             data = self.validate_data(data)
 
             # Hook
-            if 'extra' in data:
-                if 'processor' in data['extra']:
-                    try:
-                        proc = import_module('hooks.' + data['extra']['processor'])
-                        data = proc.process_pushnotification_payload(data)
-                    except Exception, ex:
-                        self.send_response(BAD_REQUEST, dict(error=str(ex)))
+            #if 'extra' in data:
+	#	logging.info ("Extra data found")
+        #        if 'processor' in data['extra']:
+        #            try:
+        #                proc = import_module('hooks.' + data['extra']['processor'])
+        #                data = proc.process_pushnotification_payload(data)
+        #            except Exception, ex:
+        #                self.send_response(BAD_REQUEST, dict(error=str(ex)))
 
             if not self.token:
                 self.token = data.get('token', None)
@@ -127,7 +128,7 @@ class PushHandler(APIBaseHandler):
                     gcm = self.gcmconnections[self.app['shortname']][0]
                     data['gcm'].setdefault('soundname', data.get('sound', None))
 		    logging.info ('GCM API: Set soundname to %s' % data['sound'])
-                    response = gcm.process(token=[self.token], alert=data['alert'], extra=data['extra'], gcm=data['gcm'])
+                    response = gcm.process(token=[self.token], alert=data['alert'], extra=extra, gcm=data['gcm'])
                     responsedata = response.json()
                     if responsedata['failure'] == 0:
                         self.send_response(ACCEPTED)
