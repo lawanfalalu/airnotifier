@@ -297,7 +297,7 @@ class APNClient(PushService):
 	mode = True if (glob_env == 'sandbox') else False
 	print "PYAPNS DETAILS: %r %s %s " % (mode, self.certfile, self.keyfile)
 	pyapns_connection  = pyAPNs(use_sandbox=mode, cert_file=self.certfile, key_file=self.keyfile)
-	pyapns_payload = pyPayload (alert=kwargs['alert'], sound=sound, badge=badge)
+	pyapns_payload = pyPayload (alert=kwargs['alert'], sound=sound, badge=badge, custom=customparams)
 	print "PYAPNS MESSAGE: %s AND %s " % (pyapns_payload, token)
 	pyapns_connection.gateway_server.send_notification(token,pyapns_payload)
         # self.send(token, pl)
